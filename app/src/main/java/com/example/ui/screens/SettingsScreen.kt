@@ -1,11 +1,18 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +25,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Brightness4
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DeleteForever
@@ -30,7 +41,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,11 +52,10 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -68,6 +78,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
+import com.example.reminder.AlarmScheduler
 import com.example.ui.MainViewModel
 import com.example.ui.components.GlassCard
 import com.example.ui.components.GoalDialog
@@ -83,6 +95,7 @@ import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     viewModel: MainViewModel,
@@ -102,9 +115,18 @@ fun SettingsScreen(
     var showImportDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showAddTimeDialog by remember { mutableStateOf(false) }
+    var showTimeWindowDialog by remember { mutableStateOf(false) }
 
     var exportJsonText by remember { mutableStateOf("") }
     var importJsonText by remember { mutableStateOf("") }
+
+    val areNotificationsEnabled = remember(context) {
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+    val canScheduleExact = remember(context) {
+        AlarmScheduler.canScheduleExactAlarms(context)
+    }
 
     val titleColor = if (isDark) SoftIvoryText else TextPrimaryDark
     val subColor = if (isDark) SoftIvoryMuted else TextSecondaryDark
@@ -117,6 +139,175 @@ fun SettingsScreen(
             onSave = {
                 viewModel.updateTarget(it)
                 showGoalDialog = false
+            }
+        )
+    }
+
+    // Add Specific Time Dialog
+    if (showAddTimeDialog) {
+        var hourInput by remember { mutableStateOf("09") }
+        var minuteInput by remember { mutableStateOf("00") }
+
+        AlertDialog(
+            onDismissRequest = { showAddTimeDialog = false },
+            title = {
+                Text(
+                    text = if (isBn) "নির্দিষ্ট সময় যোগ করুন" else "Add Specific Time",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = if (isBn) "২৪ ঘণ্টার ফরম্যাটে সময় দিন (যেমন: 09:30 বা 18:45):" else "Enter time in 24h format (e.g., 09:30 or 18:45):",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = hourInput,
+                            onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) hourInput = it },
+                            label = { Text("HH") },
+                            modifier = Modifier.width(70.dp),
+                            singleLine = true
+                        )
+                        Text(" : ", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        OutlinedTextField(
+                            value = minuteInput,
+                            onValueChange = { if (it.length <= 2 && it.all { c -> c.isDigit() }) minuteInput = it },
+                            label = { Text("MM") },
+                            modifier = Modifier.width(70.dp),
+                            singleLine = true
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = if (isBn) "জনপ্রিয় সময়গুলো:" else "Quick Suggestions:",
+                        style = MaterialTheme.typography.labelSmall.copy(color = subColor)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("07:00", "09:30", "12:15", "15:30", "18:00", "20:30", "22:00").forEach { preset ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isDark) Color(0xFF1B4433) else Color(0xFFEBE3D3))
+                                    .clickable {
+                                        val parts = preset.split(":")
+                                        hourInput = parts[0]
+                                        minuteInput = parts[1]
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(preset, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val h = hourInput.toIntOrNull() ?: 9
+                        val m = minuteInput.toIntOrNull() ?: 0
+                        if (h in 0..23 && m in 0..59) {
+                            val formatted = String.format("%02d:%02d", h, m)
+                            viewModel.addScheduledTime(formatted)
+                            showAddTimeDialog = false
+                            Toast.makeText(context, if (isBn) "$formatted সময়টি যোগ করা হয়েছে" else "Added $formatted", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, if (isBn) "সঠিক সময় দিন (ঘণ্টা ০০-২৩, মিনিট ০০-৫৯)" else "Invalid time", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AntiqueGold, contentColor = EmeraldDark)
+                ) {
+                    Text(if (isBn) "যোগ করুন" else "Add")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddTimeDialog = false }) {
+                    Text(if (isBn) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    // Time Window Dialog
+    if (showTimeWindowDialog) {
+        var startH by remember { mutableStateOf(preferences.startTime.split(":").getOrElse(0) { "08" }) }
+        var endH by remember { mutableStateOf(preferences.endTime.split(":").getOrElse(0) { "22" }) }
+
+        AlertDialog(
+            onDismissRequest = { showTimeWindowDialog = false },
+            title = {
+                Text(
+                    text = if (isBn) "রিমাইন্ডার সময়সীমা" else "Active Time Window",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = if (isBn) "সকাল কয়টা থেকে রাত কয়টা পর্যন্ত রিমাইন্ডার পাবেন:" else "Select start and end hours:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (isBn) "শুরুর সময়:" else "Start Time:")
+                        OutlinedTextField(
+                            value = startH,
+                            onValueChange = { if (it.length <= 5) startH = it },
+                            placeholder = { Text("08:00") },
+                            modifier = Modifier.width(90.dp),
+                            singleLine = true
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(if (isBn) "শেষ সময়:" else "End Time:")
+                        OutlinedTextField(
+                            value = endH,
+                            onValueChange = { if (it.length <= 5) endH = it },
+                            placeholder = { Text("22:00") },
+                            modifier = Modifier.width(90.dp),
+                            singleLine = true
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val s = if (startH.contains(":")) startH else "$startH:00"
+                        val e = if (endH.contains(":")) endH else "$endH:00"
+                        viewModel.setTimeWindow(s, e)
+                        showTimeWindowDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AntiqueGold, contentColor = EmeraldDark)
+                ) {
+                    Text(if (isBn) "সংরক্ষণ" else "Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimeWindowDialog = false }) {
+                    Text(if (isBn) "বাতিল" else "Cancel")
+                }
             }
         )
     }
@@ -315,6 +506,48 @@ fun SettingsScreen(
             }
         }
 
+        // Notification Permission Alert Banner if blocked in System Settings
+        if (!areNotificationsEnabled) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF5A2A18)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, contentDescription = "Alert", tint = Color.Yellow)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isBn) "নোটিফিকেশন পারমিশন বন্ধ আছে" else "Notifications Are Disabled",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (isBn) "রিমাইন্ডার নোটিফিকেশন পেতে ডিভাইসের সেটিংসে গিয়ে Darood অ্যাপের জন্য নোটিফিকেশন চালু করুন।" else "Enable notifications in device settings to receive reminders.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFF0DFDA)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                }
+                                context.startActivity(intent)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF5A2A18)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(if (isBn) "সেটিংস খুলুন" else "Open Settings", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
         // Section 1: Reminder Settings
         item {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -363,7 +596,7 @@ fun SettingsScreen(
 
                         // Reminder Modes Selector (Interval, Scheduled, Prayer)
                         Text(
-                            text = if (isBn) "রিমাইন্ডার মোড" else "Reminder Mode",
+                            text = if (isBn) "রিমাইন্ডার মোড বেছে নিন" else "Select Reminder Mode",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = titleColor
@@ -429,7 +662,7 @@ fun SettingsScreen(
 
                                 // Active window
                                 Text(
-                                    text = if (isBn) "সময়সীমা (সকাল থেকে রাত)" else "Active Time Window",
+                                    text = if (isBn) "রিমাইন্ডার সক্রিয় সময়সীমা" else "Active Time Window",
                                     style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
@@ -445,45 +678,73 @@ fun SettingsScreen(
                                             color = AntiqueGold
                                         )
                                     )
-                                    TextButton(
-                                        onClick = {
-                                            // Toggle between standard 08:00-22:00 or extended 06:00-23:00
-                                            if (preferences.startTime == "08:00") {
-                                                viewModel.setTimeWindow("06:00", "23:00")
-                                            } else {
-                                                viewModel.setTimeWindow("08:00", "22:00")
-                                            }
-                                        }
-                                    ) {
-                                        Text(if (isBn) "পরিবর্তন" else "Change", color = AntiqueGold)
+                                    TextButton(onClick = { showTimeWindowDialog = true }) {
+                                        Text(if (isBn) "বদলান" else "Change", color = AntiqueGold)
                                     }
                                 }
                             }
 
                             "SCHEDULED" -> {
-                                Text(
-                                    text = if (isBn) "নির্ধারিত রিমাইন্ডার সময়সূচি:" else "Scheduled Daily Times:",
-                                    style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    preferences.scheduledTimes.forEach { time ->
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(if (isDark) Color(0xFF1B4433) else Color(0xFFEBE3D3))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Text(
-                                                text = time,
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isDark) SoftIvoryText else TextPrimaryDark
-                                                )
-                                            )
+                                    Text(
+                                        text = if (isBn) "নির্ধারিত রিমাইন্ডারের সময়গুলো:" else "Scheduled Daily Times:",
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
+                                    )
+                                    TextButton(onClick = { showAddTimeDialog = true }) {
+                                        Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(16.dp), tint = AntiqueGold)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(if (isBn) "সময় যোগ করুন" else "Add Time", color = AntiqueGold, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                if (preferences.scheduledTimes.isEmpty()) {
+                                    Text(
+                                        text = if (isBn) "কোনো নির্ধারিত সময় নেই। '+ সময় যোগ করুন' বাটনে চাপুন।" else "No scheduled times. Tap '+ Add Time'.",
+                                        style = MaterialTheme.typography.bodySmall.copy(color = subColor)
+                                    )
+                                } else {
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        preferences.scheduledTimes.forEach { time ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(10.dp))
+                                                    .background(if (isDark) Color(0xFF1B4433) else Color(0xFFEBE3D3))
+                                                    .padding(start = 10.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(14.dp), tint = AntiqueGold)
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = time,
+                                                        style = MaterialTheme.typography.labelMedium.copy(
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isDark) SoftIvoryText else TextPrimaryDark
+                                                        )
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    IconButton(
+                                                        onClick = { viewModel.removeScheduledTime(time) },
+                                                        modifier = Modifier.size(20.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Close,
+                                                            contentDescription = "Delete",
+                                                            modifier = Modifier.size(14.dp),
+                                                            tint = subColor
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -496,29 +757,61 @@ fun SettingsScreen(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Column {
-                                    PrayerToggleRow("ফজর (Fajr)", preferences.prayerFajr) { viewModel.setPrayerReminder("FAJR", it) }
-                                    PrayerToggleRow("যোহর (Dhuhr)", preferences.prayerDhuhr) { viewModel.setPrayerReminder("DHUHR", it) }
-                                    PrayerToggleRow("আসর (Asr)", preferences.prayerAsr) { viewModel.setPrayerReminder("ASR", it) }
-                                    PrayerToggleRow("মাগরিব (Maghrib)", preferences.prayerMaghrib) { viewModel.setPrayerReminder("MAGHRIB", it) }
-                                    PrayerToggleRow("এশা (Isha)", preferences.prayerIsha) { viewModel.setPrayerReminder("ISHA", it) }
+                                    PrayerToggleRow("ফজর (Fajr ~05:15 AM)", preferences.prayerFajr) { viewModel.setPrayerReminder("FAJR", it) }
+                                    PrayerToggleRow("যোহর (Dhuhr ~12:45 PM)", preferences.prayerDhuhr) { viewModel.setPrayerReminder("DHUHR", it) }
+                                    PrayerToggleRow("আসর (Asr ~04:15 PM)", preferences.prayerAsr) { viewModel.setPrayerReminder("ASR", it) }
+                                    PrayerToggleRow("মাগরিব (Maghrib ~06:10 PM)", preferences.prayerMaghrib) { viewModel.setPrayerReminder("MAGHRIB", it) }
+                                    PrayerToggleRow("এশা (Isha ~07:45 PM)", preferences.prayerIsha) { viewModel.setPrayerReminder("ISHA", it) }
                                 }
                             }
                         }
 
+                        Spacer(modifier = Modifier.height(18.dp))
+                        HorizontalDivider(color = if (isDark) Color(0xFF1D4333) else Color(0xFFE4DDCE))
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Test Notification Button
-                        OutlinedButton(
-                            onClick = {
-                                onRequestNotificationPermission()
-                                viewModel.triggerTestNotification()
-                            },
+                        // Test Options
+                        Text(
+                            text = if (isBn) "রিমাইন্ডার নোটিফিকেশন পরীক্ষা করুন:" else "Test Reminders & Alarms:",
+                            style = MaterialTheme.typography.labelMedium.copy(color = subColor)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Notifications, contentDescription = "Test", modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (isBn) "টেস্ট রিমাইন্ডার নোটিফিকেশন পাঠান" else "Send Test Reminder")
+                            OutlinedButton(
+                                onClick = {
+                                    onRequestNotificationPermission()
+                                    viewModel.triggerTestNotification()
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Notifications, contentDescription = "Test", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isBn) "এখনই দেখুন" else "Test Now", fontSize = 12.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    onRequestNotificationPermission()
+                                    viewModel.scheduleTestAlarm(10)
+                                    Toast.makeText(
+                                        context,
+                                        if (isBn) "১০ সেকেন্ড পর অ্যালার্ম সেট হয়েছে! অ্যাপ মিনিমাইজ বা ফোন লক করে পরীক্ষা করুন।" else "Alarm set for 10s! Lock or minimize to test.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = AntiqueGold, contentColor = EmeraldDark)
+                            ) {
+                                Icon(imageVector = Icons.Default.Alarm, contentDescription = "Alarm", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (isBn) "১০ সেকেন্ড টেস্ট" else "10s Alarm", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -576,7 +869,6 @@ fun SettingsScreen(
         item {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(18.dp)) {
-                    // Appearance
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,

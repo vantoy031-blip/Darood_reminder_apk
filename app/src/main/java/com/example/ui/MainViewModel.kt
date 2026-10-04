@@ -136,6 +136,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _nextReminderTime.value = AlarmScheduler.getNextReminderTimeString(context)
     }
 
+    fun addScheduledTime(time: String) {
+        val current = preferences.value.scheduledTimes.toMutableList()
+        if (!current.contains(time)) {
+            current.add(time)
+            current.sort()
+            setScheduledTimes(current)
+        }
+    }
+
+    fun removeScheduledTime(time: String) {
+        val current = preferences.value.scheduledTimes.toMutableList()
+        if (current.remove(time)) {
+            setScheduledTimes(current)
+        }
+    }
+
+    fun scheduleTestAlarm(seconds: Int = 10) {
+        AlarmScheduler.scheduleTestReminderInSeconds(context, seconds)
+        triggerHapticFeedback()
+    }
+
     fun setPrayerReminder(prayer: String, enabled: Boolean) {
         prefManager.setPrayerReminder(prayer, enabled)
         AlarmScheduler.scheduleNextReminder(context)
