@@ -1,0 +1,843 @@
+package com.example.ui.screens
+
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Brightness4
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.TrackChanges
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.ui.MainViewModel
+import com.example.ui.components.GlassCard
+import com.example.ui.components.GoalDialog
+import com.example.ui.theme.AntiqueGold
+import com.example.ui.theme.AntiqueGoldLight
+import com.example.ui.theme.DarkCard
+import com.example.ui.theme.EmeraldDark
+import com.example.ui.theme.EmeraldPrimary
+import com.example.ui.theme.ErrorRed
+import com.example.ui.theme.SoftIvoryMuted
+import com.example.ui.theme.SoftIvoryText
+import com.example.ui.theme.TextPrimaryDark
+import com.example.ui.theme.TextSecondaryDark
+import kotlinx.coroutines.launch
+
+@Composable
+fun SettingsScreen(
+    viewModel: MainViewModel,
+    onRequestNotificationPermission: () -> Unit
+) {
+    val preferences by viewModel.preferences.collectAsState()
+    val todayRecord by viewModel.todayRecord.collectAsState()
+    val isDark = isSystemInDarkTheme()
+    val isBn = preferences.language == "BN"
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val coroutineScope = rememberCoroutineScope()
+
+    var showGoalDialog by remember { mutableStateOf(false) }
+    var showResetSafetyDialog by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+
+    var exportJsonText by remember { mutableStateOf("") }
+    var importJsonText by remember { mutableStateOf("") }
+
+    val titleColor = if (isDark) SoftIvoryText else TextPrimaryDark
+    val subColor = if (isDark) SoftIvoryMuted else TextSecondaryDark
+
+    if (showGoalDialog) {
+        GoalDialog(
+            currentTarget = todayRecord.target,
+            language = preferences.language,
+            onDismiss = { showGoalDialog = false },
+            onSave = {
+                viewModel.updateTarget(it)
+                showGoalDialog = false
+            }
+        )
+    }
+
+    if (showResetSafetyDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetSafetyDialog = false },
+            title = {
+                Text(
+                    text = if (isBn) "আপনি কি নিশ্চিত?" else "Are you sure?",
+                    fontWeight = FontWeight.Bold,
+                    color = ErrorRed
+                )
+            },
+            text = {
+                Text(
+                    text = if (isBn) {
+                        "সব হিস্টোরি ও ডেটা মুছে যাবে। এই কাজটি ফিরিয়ে আনা যাবে না।"
+                    } else {
+                        "All history and data will be erased. This action cannot be undone."
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.resetAllData()
+                        showResetSafetyDialog = false
+                        Toast.makeText(
+                            context,
+                            if (isBn) "সমস্ত ডেটা মুছে ফেলা হয়েছে" else "All data reset successfully",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ErrorRed, contentColor = Color.White)
+                ) {
+                    Text(if (isBn) "হ্যাঁ, মুছে ফেলুন" else "Yes, Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetSafetyDialog = false }) {
+                    Text(if (isBn) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    if (showExportDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportDialog = false },
+            title = { Text(if (isBn) "ডেটা এক্সপোর্ট (ব্যাকআপ)" else "Export Data (Backup)", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = if (isBn) "নিচের ডেটা কপি করে সুরক্ষিত স্থানে রাখুন:" else "Copy this data to save as backup:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = exportJsonText,
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(exportJsonText))
+                        Toast.makeText(context, if (isBn) "ক্লিপবোর্ডে কপি করা হয়েছে" else "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        showExportDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AntiqueGold, contentColor = EmeraldDark)
+                ) {
+                    Text(if (isBn) "কপি করুন" else "Copy")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportDialog = false }) {
+                    Text(if (isBn) "বন্ধ" else "Close")
+                }
+            }
+        )
+    }
+
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportDialog = false },
+            title = { Text(if (isBn) "ডেটা ইমপোর্ট (রিস্টোর)" else "Import Data (Restore)", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = if (isBn) "আপনার পূর্ববর্তী ব্যাকআপ ডেটা এখানে পেস্ট করুন:" else "Paste your backup JSON data here:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = importJsonText,
+                        onValueChange = { importJsonText = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.importDataJson(importJsonText) { success, msg ->
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                            if (success) showImportDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AntiqueGold, contentColor = EmeraldDark)
+                ) {
+                    Text(if (isBn) "পুনরুদ্ধার করুন" else "Restore")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportDialog = false }) {
+                    Text(if (isBn) "বাতিল" else "Cancel")
+                }
+            }
+        )
+    }
+
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = { Text(text = "Darood • দরুদ", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "একটু থামুন, দরুদ পড়ুন ﷺ\n\nঅ্যাপ সংস্করণ: ১.০.০ (1.0.0)\n\nএই অ্যাপটি মুসলিমদের দৈনন্দিন জীবনে প্রিয় নবী মুহাম্মদ ﷺ-এর ওপর দরুদ পাঠের আমলকে সহজ, নিয়মিত ও শান্তিপূর্ণ করার উদ্দেশ্যে তৈরি করা হয়েছে।\n\nরেফারেন্স: সহিহ মুসলিম: ৩৮৪, সুনান তিরমিজি: ৪৮৪, সুনান আন-নাসায়ী: ১২৯৭।",
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutDialog = false }) {
+                    Text(if (isBn) "ঠিক আছে" else "OK")
+                }
+            }
+        )
+    }
+
+    if (showPrivacyDialog) {
+        AlertDialog(
+            onDismissRequest = { showPrivacyDialog = false },
+            title = { Text(if (isBn) "গোপনীয়তা ও ডেটা সুরক্ষা" else "Privacy & Data Safety", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    text = if (isBn) {
+                        "১. Darood অ্যাপ কোনো ব্যক্তিগত তথ্য সংগ্রহ করে না।\n২. আপনার সমস্ত আমলের হিসাব, লক্ষ্য এবং রিমাইন্ডার কেবল আপনার নিজস্ব ডিভাইসেই সংরক্ষিত থাকে (১০০% অফলাইন)।\n৩. কোনো অ্যাকাউন্ট বা লগইন প্রয়োজন নেই।"
+                    } else {
+                        "1. Darood does not collect any personal data.\n2. All your counts, targets, and reminders stay 100% on your device locally.\n3. No login or cloud tracking is required."
+                    },
+                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showPrivacyDialog = false }) {
+                    Text(if (isBn) "বুঝেছি" else "Understood")
+                }
+            }
+        )
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .testTag("settings_screen"),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (isBn) "সেটিংস" else "Settings",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = titleColor
+                    )
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (isBn) "আপনার সুবিধামতো রিমাইন্ডার ও অ্যাপ সাজিয়ে নিন" else "Customize reminders and preferences",
+                    style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
+                )
+            }
+        }
+
+        // Section 1: Reminder Settings
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = "Reminder",
+                                tint = AntiqueGold,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isBn) "দরুদ রিমাইন্ডার" else "Darood Reminder",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = titleColor
+                                )
+                            )
+                        }
+
+                        Switch(
+                            checked = preferences.reminderEnabled,
+                            onCheckedChange = { isChecked ->
+                                if (isChecked) {
+                                    onRequestNotificationPermission()
+                                }
+                                viewModel.toggleReminder(isChecked)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = AntiqueGold,
+                                checkedTrackColor = EmeraldPrimary
+                            )
+                        )
+                    }
+
+                    if (preferences.reminderEnabled) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(color = if (isDark) Color(0xFF1D4333) else Color(0xFFE4DDCE))
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Reminder Modes Selector (Interval, Scheduled, Prayer)
+                        Text(
+                            text = if (isBn) "রিমাইন্ডার মোড" else "Reminder Mode",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = titleColor
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = preferences.reminderMode == "INTERVAL",
+                                onClick = { viewModel.setReminderMode("INTERVAL") },
+                                label = { Text(if (isBn) "নির্দিষ্ট বিরতি" else "Interval") },
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            FilterChip(
+                                selected = preferences.reminderMode == "SCHEDULED",
+                                onClick = { viewModel.setReminderMode("SCHEDULED") },
+                                label = { Text(if (isBn) "নির্ধারিত সময়" else "Scheduled") },
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            FilterChip(
+                                selected = preferences.reminderMode == "PRAYER",
+                                onClick = { viewModel.setReminderMode("PRAYER") },
+                                label = { Text(if (isBn) "নামাজের পর" else "Prayer") },
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        when (preferences.reminderMode) {
+                            "INTERVAL" -> {
+                                Text(
+                                    text = if (isBn) "কতক্ষণ পরপর মনে করিয়ে দেব?" else "Reminder Interval",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(15 to "১৫ মি.", 30 to "৩০ মি.", 60 to "১ ঘণ্টা", 120 to "২ ঘণ্টা").forEach { (mins, label) ->
+                                        val isSel = preferences.intervalMinutes == mins
+                                        Button(
+                                            onClick = { viewModel.setIntervalMinutes(mins) },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (isSel) AntiqueGold else if (isDark) Color(0xFF1B4433) else Color(0xFFEBE3D3),
+                                                contentColor = if (isSel) EmeraldDark else if (isDark) SoftIvoryText else TextPrimaryDark
+                                            )
+                                        ) {
+                                            Text(label, fontSize = 11.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Active window
+                                Text(
+                                    text = if (isBn) "সময়সীমা (সকাল থেকে রাত)" else "Active Time Window",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${preferences.startTime}  —  ${preferences.endTime}",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = AntiqueGold
+                                        )
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            // Toggle between standard 08:00-22:00 or extended 06:00-23:00
+                                            if (preferences.startTime == "08:00") {
+                                                viewModel.setTimeWindow("06:00", "23:00")
+                                            } else {
+                                                viewModel.setTimeWindow("08:00", "22:00")
+                                            }
+                                        }
+                                    ) {
+                                        Text(if (isBn) "পরিবর্তন" else "Change", color = AntiqueGold)
+                                    }
+                                }
+                            }
+
+                            "SCHEDULED" -> {
+                                Text(
+                                    text = if (isBn) "নির্ধারিত রিমাইন্ডার সময়সূচি:" else "Scheduled Daily Times:",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    preferences.scheduledTimes.forEach { time ->
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isDark) Color(0xFF1B4433) else Color(0xFFEBE3D3))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = time,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isDark) SoftIvoryText else TextPrimaryDark
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            "PRAYER" -> {
+                                Text(
+                                    text = if (isBn) "যেসব নামাজের পর স্মরণ করিয়ে দেব:" else "Remind after prayers:",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Column {
+                                    PrayerToggleRow("ফজর (Fajr)", preferences.prayerFajr) { viewModel.setPrayerReminder("FAJR", it) }
+                                    PrayerToggleRow("যোহর (Dhuhr)", preferences.prayerDhuhr) { viewModel.setPrayerReminder("DHUHR", it) }
+                                    PrayerToggleRow("আসর (Asr)", preferences.prayerAsr) { viewModel.setPrayerReminder("ASR", it) }
+                                    PrayerToggleRow("মাগরিব (Maghrib)", preferences.prayerMaghrib) { viewModel.setPrayerReminder("MAGHRIB", it) }
+                                    PrayerToggleRow("এশা (Isha)", preferences.prayerIsha) { viewModel.setPrayerReminder("ISHA", it) }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Test Notification Button
+                        OutlinedButton(
+                            onClick = {
+                                onRequestNotificationPermission()
+                                viewModel.triggerTestNotification()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Notifications, contentDescription = "Test", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (isBn) "টেস্ট রিমাইন্ডার নোটিফিকেশন পাঠান" else "Send Test Reminder")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section 2: Daily Goal
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.TrackChanges,
+                            contentDescription = "Daily Goal",
+                            tint = AntiqueGold,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = if (isBn) "প্রতিদিনের লক্ষ্য" else "Daily Target",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = titleColor
+                                )
+                            )
+                            Text(
+                                text = "${preferences.dailyTarget} ${if (isBn) "বার" else "times"}",
+                                style = MaterialTheme.typography.bodySmall.copy(color = subColor)
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { showGoalDialog = true },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AntiqueGold,
+                            contentColor = EmeraldDark
+                        )
+                    ) {
+                        Text(if (isBn) "পরিবর্তন" else "Change", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Section 3: Appearance & Language
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    // Appearance
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Brightness4,
+                                contentDescription = "Appearance",
+                                tint = AntiqueGold,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isBn) "থিম ডিজাইন" else "Theme",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = titleColor
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = preferences.themeMode == "SYSTEM",
+                            onClick = { viewModel.setThemeMode("SYSTEM") },
+                            label = { Text(if (isBn) "সিস্টেম" else "System") },
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        FilterChip(
+                            selected = preferences.themeMode == "LIGHT",
+                            onClick = { viewModel.setThemeMode("LIGHT") },
+                            label = { Text(if (isBn) "লাইট (আইভরি)" else "Light") },
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        FilterChip(
+                            selected = preferences.themeMode == "DARK",
+                            onClick = { viewModel.setThemeMode("DARK") },
+                            label = { Text(if (isBn) "ডার্ক (এমারেল্ড)" else "Dark") },
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = if (isDark) Color(0xFF1D4333) else Color(0xFFE4DDCE))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Language
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Language,
+                                contentDescription = "Language",
+                                tint = AntiqueGold,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (isBn) "ভাষা" else "Language",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = titleColor
+                                )
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = preferences.language == "BN",
+                                onClick = { viewModel.setLanguage("BN") },
+                                label = { Text("বাংলা") },
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            FilterChip(
+                                selected = preferences.language == "EN",
+                                onClick = { viewModel.setLanguage("EN") },
+                                label = { Text("English") },
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section 4: Vibration & Sound
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Vibration,
+                                contentDescription = "Vibration",
+                                tint = AntiqueGold,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (isBn) "হ্যাপটিক কম্পন (Vibration)" else "Haptic Vibration",
+                                    style = MaterialTheme.typography.titleSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = titleColor
+                                    )
+                                )
+                                Text(
+                                    text = if (isBn) "দরুদ গণনার সময় মৃদু কম্পন" else "Subtle vibration on count",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = subColor)
+                                )
+                            }
+                        }
+
+                        Switch(
+                            checked = preferences.vibrationEnabled,
+                            onCheckedChange = { viewModel.setVibrationEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = AntiqueGold,
+                                checkedTrackColor = EmeraldPrimary
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 5: Data Backup, Restore & Reset
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = if (isBn) "ডেটা ব্যবস্থাপনা ও ব্যাকআপ" else "Data Management",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = titleColor
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    exportJsonText = viewModel.exportDataJson()
+                                    showExportDialog = true
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = "Export", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isBn) "এক্সপোর্ট" else "Export", fontSize = 13.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                importJsonText = ""
+                                showImportDialog = true
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.CloudUpload, contentDescription = "Import", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (isBn) "ইমপোর্ট" else "Import", fontSize = 13.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = { showResetSafetyDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed)
+                    ) {
+                        Icon(Icons.Default.DeleteForever, contentDescription = "Reset", modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (isBn) "সকল হিস্টোরি ও ডেটা মুছে ফেলুন" else "Reset All Data")
+                    }
+                }
+            }
+        }
+
+        // Section 6: About & Privacy
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { showAboutDialog = true }) {
+                            Icon(Icons.Default.Info, contentDescription = "About", tint = AntiqueGold, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (isBn) "দরুদ অ্যাপ সম্পর্কে" else "About Darood", color = titleColor)
+                        }
+
+                        TextButton(onClick = { showPrivacyDialog = true }) {
+                            Icon(Icons.Default.Security, contentDescription = "Privacy", tint = AntiqueGold, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(if (isBn) "গোপনীয়তা" else "Privacy", color = titleColor)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (isBn) "সংস্করণ: ১.০.০ • ১০০% অফলাইন ও ব্যক্তিগত" else "Version 1.0.0 • 100% Offline & Private",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            color = subColor,
+                            fontSize = 11.sp
+                        ),
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(28.dp))
+        }
+    }
+}
+
+@Composable
+private fun PrayerToggleRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = title, style = MaterialTheme.typography.bodySmall)
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = CheckboxDefaults.colors(checkedColor = AntiqueGold)
+        )
+    }
+}

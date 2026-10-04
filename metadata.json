@@ -1,0 +1,6 @@
+{
+  "name": "Darood",
+  "description": "একটু থামুন, দরুদ পড়ুন ﷺ - A peaceful, premium Islamic Darood reminder, tasbih counter and spiritual companion.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
