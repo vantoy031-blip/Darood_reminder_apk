@@ -18,14 +18,18 @@ data class WeeklyBarData(
     val dayLabelBn: String, // "শনিবার", etc.
     val dayLabelEn: String, // "Saturday", etc.
     val dateString: String, // "YYYY-MM-DD"
-    val count: Int,
+    val count: Int, // Durood count
+    val tasbihCount: Int = 0, // Tasbih count
     val isToday: Boolean
 )
 
 data class StatisticsData(
-    val todayTotal: Int = 0,
-    val weeklyTotal: Int = 0,
-    val monthlyTotal: Int = 0,
+    val todayTotal: Int = 0, // Today's Durood total
+    val weeklyTotal: Int = 0, // Weekly Durood total
+    val monthlyTotal: Int = 0, // Monthly Durood total
+    val todayTasbihTotal: Int = 0, // Today's Tasbih total (separate)
+    val weeklyTasbihTotal: Int = 0, // Weekly Tasbih total (separate)
+    val monthlyTasbihTotal: Int = 0, // Monthly Tasbih total (separate)
     val currentStreak: Int = 0,
     val bestStreak: Int = 0,
     val yesterdayCount: Int = 0,
@@ -42,7 +46,7 @@ class DaroodRepository(
     fun getTodayRecord(target: Int = 500): Flow<DailyRecord> {
         val today = getTodayDateString()
         return dao.getRecordByDate(today).map { record ->
-            record ?: DailyRecord(date = today, count = 0, target = target)
+            record ?: DailyRecord(date = today, count = 0, target = target, tasbihCount = 0)
         }
     }
 
@@ -95,6 +99,88 @@ class DaroodRepository(
         updated
     }
 
+    // Separate Tasbih counting operations
+    suspend fun incrementTasbih(dhikrId: String, delta: Int = 1, defaultTarget: Int = 500): DailyRecord = withContext(Dispatchers.IO) {
+        val today = getTodayDateString()
+        val current = dao.getRecordByDateSync(today) ?: DailyRecord(date = today, count = 0, target = defaultTarget)
+
+        val updated = if (dhikrId == "durood") {
+            val newCount = (current.count + delta).coerceAtLeast(0)
+            val newSession = (current.sessionCount + delta).coerceAtLeast(0)
+            current.copy(
+                count = newCount,
+                sessionCount = newSession,
+                selectedDhikrId = dhikrId,
+                completedGoal = newCount >= current.target,
+                lastUpdatedMillis = System.currentTimeMillis()
+            )
+        } else {
+            // Counted separately under tasbihCount
+            val newTasbihCount = (current.tasbihCount + delta).coerceAtLeast(0)
+            val newTasbihSession = (current.tasbihSessionCount + delta).coerceAtLeast(0)
+            current.copy(
+                tasbihCount = newTasbihCount,
+                tasbihSessionCount = newTasbihSession,
+                selectedDhikrId = dhikrId,
+                lastUpdatedMillis = System.currentTimeMillis()
+            )
+        }
+
+        dao.insertOrUpdate(updated)
+        updated
+    }
+
+    suspend fun undoTasbih(dhikrId: String): DailyRecord? = withContext(Dispatchers.IO) {
+        val today = getTodayDateString()
+        val current = dao.getRecordByDateSync(today) ?: return@withContext null
+
+        val updated = if (dhikrId == "durood") {
+            if (current.count <= 0) return@withContext current
+            val newCount = (current.count - 1).coerceAtLeast(0)
+            val newSession = (current.sessionCount - 1).coerceAtLeast(0)
+            current.copy(
+                count = newCount,
+                sessionCount = newSession,
+                completedGoal = newCount >= current.target,
+                lastUpdatedMillis = System.currentTimeMillis()
+            )
+        } else {
+            if (current.tasbihCount <= 0) return@withContext current
+            val newTasbihCount = (current.tasbihCount - 1).coerceAtLeast(0)
+            val newTasbihSession = (current.tasbihSessionCount - 1).coerceAtLeast(0)
+            current.copy(
+                tasbihCount = newTasbihCount,
+                tasbihSessionCount = newTasbihSession,
+                lastUpdatedMillis = System.currentTimeMillis()
+            )
+        }
+
+        dao.insertOrUpdate(updated)
+        updated
+    }
+
+    suspend fun resetTasbihSession(): DailyRecord? = withContext(Dispatchers.IO) {
+        val today = getTodayDateString()
+        val current = dao.getRecordByDateSync(today) ?: return@withContext null
+        val updated = current.copy(
+            tasbihSessionCount = 0,
+            lastUpdatedMillis = System.currentTimeMillis()
+        )
+        dao.insertOrUpdate(updated)
+        updated
+    }
+
+    suspend fun setSelectedDhikr(dhikrId: String) = withContext(Dispatchers.IO) {
+        val today = getTodayDateString()
+        val current = dao.getRecordByDateSync(today) ?: DailyRecord(date = today)
+        val updated = current.copy(
+            selectedDhikrId = dhikrId,
+            tasbihSessionCount = 0,
+            lastUpdatedMillis = System.currentTimeMillis()
+        )
+        dao.insertOrUpdate(updated)
+    }
+
     suspend fun updateTarget(newTarget: Int) = withContext(Dispatchers.IO) {
         val today = getTodayDateString()
         val current = dao.getRecordByDateSync(today) ?: DailyRecord(date = today, count = 0, target = newTarget)
@@ -115,22 +201,26 @@ class DaroodRepository(
         val recordMap = allRecords.associateBy { it.date }
 
         val todayTotal = recordMap[todayStr]?.count ?: 0
+        val todayTasbihTotal = recordMap[todayStr]?.tasbihCount ?: 0
         val yesterdayCount = recordMap[yesterdayStr]?.count ?: 0
 
-        // Weekly total (last 7 days)
+        // Weekly totals (last 7 days)
         var weeklyTotal = 0
+        var weeklyTasbihTotal = 0
         val cal7 = Calendar.getInstance()
         for (i in 0 until 7) {
             val dStr = dateFormat.format(cal7.time)
             weeklyTotal += recordMap[dStr]?.count ?: 0
+            weeklyTasbihTotal += recordMap[dStr]?.tasbihCount ?: 0
             cal7.add(Calendar.DAY_OF_YEAR, -1)
         }
 
-        // Monthly total (this month)
+        // Monthly totals (this month)
         val calMonth = Calendar.getInstance()
         val currentMonth = calMonth.get(Calendar.MONTH)
         val currentYear = calMonth.get(Calendar.YEAR)
         var monthlyTotal = 0
+        var monthlyTasbihTotal = 0
         for (r in allRecords) {
             try {
                 val d = dateFormat.parse(r.date)
@@ -138,6 +228,7 @@ class DaroodRepository(
                     val c = Calendar.getInstance().apply { time = d }
                     if (c.get(Calendar.MONTH) == currentMonth && c.get(Calendar.YEAR) == currentYear) {
                         monthlyTotal += r.count
+                        monthlyTasbihTotal += r.tasbihCount
                     }
                 }
             } catch (_: Exception) {}
@@ -152,7 +243,7 @@ class DaroodRepository(
             cal30.add(Calendar.DAY_OF_YEAR, -1)
         }
 
-        // Current streak & Best streak
+        // Current streak & Best streak based on Durood / Dhikr
         val currentStreak = calculateCurrentStreak(recordMap, todayStr, yesterdayStr)
         val bestStreak = calculateBestStreak(allRecords)
 
@@ -160,6 +251,9 @@ class DaroodRepository(
             todayTotal = todayTotal,
             weeklyTotal = weeklyTotal,
             monthlyTotal = monthlyTotal,
+            todayTasbihTotal = todayTasbihTotal,
+            weeklyTasbihTotal = weeklyTasbihTotal,
+            monthlyTasbihTotal = monthlyTasbihTotal,
             currentStreak = currentStreak,
             bestStreak = bestStreak,
             yesterdayCount = yesterdayCount,
@@ -171,14 +265,14 @@ class DaroodRepository(
         var streak = 0
         val cal = Calendar.getInstance()
 
-        // Check if today has counts
-        val todayCount = recordMap[todayStr]?.count ?: 0
+        val todayRec = recordMap[todayStr]
+        val todayCount = (todayRec?.count ?: 0) + (todayRec?.tasbihCount ?: 0)
         if (todayCount > 0) {
             streak++
             cal.add(Calendar.DAY_OF_YEAR, -1)
         } else {
-            // If today is 0, check yesterday
-            val yesterdayCount = recordMap[yesterdayStr]?.count ?: 0
+            val yesterdayRec = recordMap[yesterdayStr]
+            val yesterdayCount = (yesterdayRec?.count ?: 0) + (yesterdayRec?.tasbihCount ?: 0)
             if (yesterdayCount > 0) {
                 streak++
                 cal.add(Calendar.DAY_OF_YEAR, -2)
@@ -189,7 +283,8 @@ class DaroodRepository(
 
         while (true) {
             val dateStr = dateFormat.format(cal.time)
-            val count = recordMap[dateStr]?.count ?: 0
+            val rec = recordMap[dateStr]
+            val count = (rec?.count ?: 0) + (rec?.tasbihCount ?: 0)
             if (count > 0) {
                 streak++
                 cal.add(Calendar.DAY_OF_YEAR, -1)
@@ -202,7 +297,7 @@ class DaroodRepository(
 
     private fun calculateBestStreak(allRecords: List<DailyRecord>): Int {
         if (allRecords.isEmpty()) return 0
-        val positiveDates = allRecords.filter { it.count > 0 }.map { it.date }.sorted()
+        val positiveDates = allRecords.filter { (it.count + it.tasbihCount) > 0 }.map { it.date }.sorted()
         if (positiveDates.isEmpty()) return 0
 
         var maxStreak = 1
@@ -241,12 +336,6 @@ class DaroodRepository(
         val result = mutableListOf<WeeklyBarData>()
         val todayStr = getTodayDateString()
 
-        // Days from Saturday to Friday or last 7 days
-        val cal = Calendar.getInstance()
-        // Align to current week or last 7 days ending today
-        // As per prompt:
-        // Saturday 320, Sunday 450, Monday 210, Tuesday 500, Wednesday 390, Thursday 600, Friday 720
-        // We will display the last 7 days ending today
         val dayLabels = listOf(
             Triple("শনিবার", "Saturday", "Sat"),
             Triple("রবিবার", "Sunday", "Sun"),
@@ -275,7 +364,9 @@ class DaroodRepository(
             }
 
             val labels = dayLabels[dayIndex]
-            val count = recordMap[dStr]?.count ?: 0
+            val record = recordMap[dStr]
+            val count = record?.count ?: 0
+            val tasbihCount = record?.tasbihCount ?: 0
             result.add(
                 WeeklyBarData(
                     dayKey = labels.third,
@@ -283,6 +374,7 @@ class DaroodRepository(
                     dayLabelEn = labels.second,
                     dateString = dStr,
                     count = count,
+                    tasbihCount = tasbihCount,
                     isToday = dStr == todayStr
                 )
             )
@@ -296,6 +388,7 @@ class DaroodRepository(
         val records = dao.getAllRecordsSync()
         val root = JSONObject()
         root.put("app", "Darood")
+        root.put("developer", "TBT BOYz")
         root.put("exportedAt", System.currentTimeMillis())
         val array = JSONArray()
         for (r in records) {
@@ -303,6 +396,8 @@ class DaroodRepository(
             item.put("date", r.date)
             item.put("count", r.count)
             item.put("target", r.target)
+            item.put("tasbihCount", r.tasbihCount)
+            item.put("selectedDhikrId", r.selectedDhikrId)
             item.put("completedGoal", r.completedGoal)
             item.put("lastUpdatedMillis", r.lastUpdatedMillis)
             array.put(item)
@@ -321,6 +416,8 @@ class DaroodRepository(
                 val date = item.getString("date")
                 val cnt = item.getInt("count")
                 val target = item.optInt("target", 500)
+                val tasbihCnt = item.optInt("tasbihCount", 0)
+                val selectedDhikr = item.optString("selectedDhikrId", "subhanallah")
                 val completed = item.optBoolean("completedGoal", cnt >= target)
                 val updated = item.optLong("lastUpdatedMillis", System.currentTimeMillis())
                 dao.insertOrUpdate(
@@ -328,6 +425,8 @@ class DaroodRepository(
                         date = date,
                         count = cnt,
                         target = target,
+                        tasbihCount = tasbihCnt,
+                        selectedDhikrId = selectedDhikr,
                         completedGoal = completed,
                         lastUpdatedMillis = updated
                     )

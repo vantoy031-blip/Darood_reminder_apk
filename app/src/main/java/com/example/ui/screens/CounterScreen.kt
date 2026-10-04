@@ -11,6 +11,8 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,9 +21,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChangeCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.Vibration
@@ -31,8 +37,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -56,6 +60,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
+import com.example.data.model.DhikrItem
+import com.example.data.model.DhikrList
 import com.example.ui.MainViewModel
 import com.example.ui.components.GlassCard
 import com.example.ui.theme.AntiqueGold
@@ -70,8 +77,8 @@ import com.example.ui.theme.SoftIvoryMuted
 import com.example.ui.theme.SoftIvoryText
 import com.example.ui.theme.TextPrimaryDark
 import com.example.ui.theme.TextSecondaryDark
-import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CounterScreen(viewModel: MainViewModel) {
     val todayRecord by viewModel.todayRecord.collectAsState()
@@ -80,12 +87,21 @@ fun CounterScreen(viewModel: MainViewModel) {
     val isBn = preferences.language == "BN"
 
     var showResetDialog by remember { mutableStateOf(false) }
+    var showDhikrSelectDialog by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
     val scaleAnim = remember { Animatable(1f) }
 
     val titleColor = if (isDark) SoftIvoryText else TextPrimaryDark
     val subColor = if (isDark) SoftIvoryMuted else TextSecondaryDark
+
+    val currentDhikr = DhikrList.items.find { it.id == todayRecord.selectedDhikrId }
+        ?: DhikrList.items.first()
+
+    // Determine count to display: If Durood is chosen in Tasbih, show Durood count, otherwise show separate Tasbih count!
+    val isDuroodActive = currentDhikr.isDurood
+    val displayCount = if (isDuroodActive) todayRecord.count else todayRecord.tasbihCount
+    val sessionLap = if (isDuroodActive) todayRecord.sessionCount else todayRecord.tasbihSessionCount
 
     if (showResetDialog) {
         AlertDialog(
@@ -99,16 +115,20 @@ fun CounterScreen(viewModel: MainViewModel) {
             text = {
                 Text(
                     text = if (isBn) {
-                        "এটি শুধুমাত্র আপনার বর্তমান তাসবীহ সেশনের গণনা ০ করবে। আপনার আজকের মোট আমল (${todayRecord.count} বার) এবং পূর্বের ইতিহাস সুরক্ষিত থাকবে।"
+                        "এটি শুধুমাত্র আপনার বর্তমান তাসবীহ সেশনের ল্যাপ ০ করবে। আজকের মোট তাসবীহ ও দরুদের হিসাব সংরক্ষিত থাকবে।"
                     } else {
-                        "This will only reset your current counting session to 0. Today's total count (${todayRecord.count}) and history will remain safe."
+                        "This will only reset your current lap to 0. Total daily counts remain safe."
                     }
                 )
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.resetSession()
+                        if (isDuroodActive) {
+                            viewModel.resetSession()
+                        } else {
+                            viewModel.resetTasbihSession()
+                        }
                         showResetDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -127,10 +147,75 @@ fun CounterScreen(viewModel: MainViewModel) {
         )
     }
 
+    // Dhikr Selection Dialog
+    if (showDhikrSelectDialog) {
+        AlertDialog(
+            onDismissRequest = { showDhikrSelectDialog = false },
+            title = {
+                Text(
+                    text = if (isBn) "তাসবীহ / জিকির নির্বাচন করুন" else "Select Dhikr / Tasbih",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = if (isBn) "যেকোনো জিকির নির্বাচন করে তাসবীহ গণনা করতে পারেন। দরুদ এবং তাসবীহ আলাদাভাবে হিসাব রাখা হবে।" else "Select any dhikr to recite. Durood and other Tasbih are counted separately.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = subColor)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    DhikrList.items.forEach { item ->
+                        val isSelected = item.id == currentDhikr.id
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) AntiqueGold.copy(alpha = 0.25f) else if (isDark) Color(0xFF1B4433) else Color(0xFFF2ECE1))
+                                .clickable {
+                                    viewModel.setSelectedDhikr(item.id)
+                                    showDhikrSelectDialog = false
+                                }
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isBn) item.nameBn else item.nameEn,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) AntiqueGold else titleColor
+                                    )
+                                    Text(
+                                        text = item.arabic,
+                                        fontSize = 14.sp,
+                                        color = subColor
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(Icons.Default.Check, contentDescription = "Selected", tint = AntiqueGold)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDhikrSelectDialog = false }) {
+                    Text(if (isBn) "বন্ধ" else "Close")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
@@ -140,55 +225,79 @@ fun CounterScreen(viewModel: MainViewModel) {
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = if (isBn) "তাসবীহ কাউন্টার" else "Tasbih Counter",
+                text = if (isBn) "ডিজিটাল তাসবীহ" else "Digital Tasbih",
                 style = MaterialTheme.typography.titleLarge.copy(
                     fontWeight = FontWeight.Bold,
                     color = titleColor
                 )
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = if (isBn) "মনোযোগ সহকারে দরুদ পাঠ করুন" else "Recite Darood with deep mindfulness",
-                style = MaterialTheme.typography.bodyMedium.copy(color = subColor)
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Progress bar to daily target
-            val targetVal = todayRecord.target.coerceAtLeast(1)
-            val progressFrac = (todayRecord.count.toFloat() / targetVal).coerceIn(0f, 1f)
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = if (isBn) "আজকের মোট: ${todayRecord.count}" else "Today's Total: ${todayRecord.count}",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = titleColor
-                    )
-                )
-                Text(
-                    text = if (isBn) "লক্ষ্য: ${todayRecord.target}" else "Target: ${todayRecord.target}",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = AntiqueGold
-                    )
-                )
-            }
-
             Spacer(modifier = Modifier.height(6.dp))
 
-            LinearProgressIndicator(
-                progress = { progressFrac },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
-                color = AntiqueGold,
-                trackColor = if (isDark) Color(0xFF133627) else Color(0xFFE4DDCE)
-            )
+            // Dhikr selector button
+            Surface(
+                onClick = { showDhikrSelectDialog = true },
+                shape = RoundedCornerShape(16.dp),
+                color = if (isDark) Color(0xFF163E2E) else Color(0xFFEBE3D3),
+                modifier = Modifier.padding(vertical = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isBn) currentDhikr.nameBn else currentDhikr.nameEn,
+                        style = MaterialTheme.typography.titleSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = AntiqueGold
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.ChangeCircle,
+                        contentDescription = "Change Dhikr",
+                        tint = AntiqueGold,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Two separate count chips: Durood & Tasbih
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isDuroodActive) AntiqueGold.copy(alpha = 0.2f) else if (isDark) DarkCard else Color(0xFFF2ECE1),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                ) {
+                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Text(
+                            text = if (isBn) "দরুদ: ${todayRecord.count}" else "Durood: ${todayRecord.count}",
+                            fontSize = 12.sp,
+                            fontWeight = if (isDuroodActive) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isDuroodActive) AntiqueGold else subColor
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (!isDuroodActive) AntiqueGold.copy(alpha = 0.2f) else if (isDark) DarkCard else Color(0xFFF2ECE1),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                ) {
+                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Text(
+                            text = if (isBn) "অন্যান্য তাসবীহ: ${todayRecord.tasbihCount}" else "Other Tasbih: ${todayRecord.tasbihCount}",
+                            fontSize = 12.sp,
+                            fontWeight = if (!isDuroodActive) FontWeight.Bold else FontWeight.Medium,
+                            color = if (!isDuroodActive) AntiqueGold else subColor
+                        )
+                    }
+                }
+            }
         }
 
         // Center Big Circular Touch Area
@@ -219,10 +328,10 @@ fun CounterScreen(viewModel: MainViewModel) {
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
-                        viewModel.incrementToday(1)
+                        viewModel.incrementTasbih(currentDhikr.id, 1)
                         coroutineScope.launch {
-                            scaleAnim.animateTo(0.92f, tween(80, easing = FastOutSlowInEasing))
-                            scaleAnim.animateTo(1f, tween(140, easing = FastOutSlowInEasing))
+                            scaleAnim.animateTo(0.92f, tween(75, easing = FastOutSlowInEasing))
+                            scaleAnim.animateTo(1f, tween(130, easing = FastOutSlowInEasing))
                         }
                     }
                     .testTag("big_counter_tap_area"),
@@ -230,7 +339,7 @@ fun CounterScreen(viewModel: MainViewModel) {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "${todayRecord.count}",
+                        text = "$displayCount",
                         style = MaterialTheme.typography.displayLarge.copy(
                             fontSize = 62.sp,
                             fontWeight = FontWeight.Bold,
@@ -239,8 +348,8 @@ fun CounterScreen(viewModel: MainViewModel) {
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (todayRecord.sessionCount > 0) {
-                            if (isBn) "সেশন: ${todayRecord.sessionCount}" else "Session: ${todayRecord.sessionCount}"
+                        text = if (sessionLap > 0) {
+                            if (isBn) "ল্যাপ: $sessionLap" else "Lap: $sessionLap"
                         } else {
                             if (isBn) "চাপুন (+১)" else "Tap (+1)"
                         },
@@ -253,15 +362,27 @@ fun CounterScreen(viewModel: MainViewModel) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Short Darood hint
+            // Dhikr Arabic Text
             Text(
-                text = "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ ﷺ",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontSize = 17.sp,
+                text = currentDhikr.arabic,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontSize = 22.sp,
                     color = titleColor,
-                    lineHeight = 28.sp
+                    lineHeight = 34.sp
+                ),
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Meaning / Virtue
+            Text(
+                text = currentDhikr.meaningBn,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 13.sp,
+                    color = AntiqueGold
                 ),
                 textAlign = TextAlign.Center
             )
@@ -278,28 +399,28 @@ fun CounterScreen(viewModel: MainViewModel) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedButton(
-                    onClick = { viewModel.incrementToday(1) },
+                    onClick = { viewModel.incrementTasbih(currentDhikr.id, 1) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("+1", fontWeight = FontWeight.Bold, color = if (isDark) AntiqueGoldLight else EmeraldPrimary)
                 }
                 OutlinedButton(
-                    onClick = { viewModel.incrementToday(5) },
+                    onClick = { viewModel.incrementTasbih(currentDhikr.id, 5) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("+5", fontWeight = FontWeight.Bold, color = if (isDark) AntiqueGoldLight else EmeraldPrimary)
                 }
                 OutlinedButton(
-                    onClick = { viewModel.incrementToday(10) },
+                    onClick = { viewModel.incrementTasbih(currentDhikr.id, 10) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("+10", fontWeight = FontWeight.Bold, color = if (isDark) AntiqueGoldLight else EmeraldPrimary)
                 }
                 OutlinedButton(
-                    onClick = { viewModel.incrementToday(33) },
+                    onClick = { viewModel.incrementTasbih(currentDhikr.id, 33) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -316,19 +437,19 @@ fun CounterScreen(viewModel: MainViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(
-                    onClick = { viewModel.undoToday() },
-                    enabled = todayRecord.count > 0
+                    onClick = { viewModel.undoTasbih(currentDhikr.id) },
+                    enabled = displayCount > 0
                 ) {
                     Icon(
                         imageVector = Icons.Default.Undo,
                         contentDescription = "Undo",
                         modifier = Modifier.size(18.dp),
-                        tint = if (todayRecord.count > 0) subColor else subColor.copy(alpha = 0.4f)
+                        tint = if (displayCount > 0) subColor else subColor.copy(alpha = 0.4f)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (isBn) "পূর্বাবস্থায় (-১)" else "Undo (-1)",
-                        color = if (todayRecord.count > 0) subColor else subColor.copy(alpha = 0.4f)
+                        color = if (displayCount > 0) subColor else subColor.copy(alpha = 0.4f)
                     )
                 }
 
@@ -364,7 +485,7 @@ fun CounterScreen(viewModel: MainViewModel) {
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isBn) "সেশন রিসেট" else "Reset Lap",
+                        text = if (isBn) "ল্যাপ রিসেট" else "Reset Lap",
                         color = subColor
                     )
                 }

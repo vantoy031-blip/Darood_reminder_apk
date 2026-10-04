@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -20,11 +19,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Divider
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -35,9 +31,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -48,8 +41,6 @@ import com.example.data.repository.WeeklyBarData
 import com.example.ui.MainViewModel
 import com.example.ui.components.GlassCard
 import com.example.ui.theme.AntiqueGold
-import com.example.ui.theme.AntiqueGoldLight
-import com.example.ui.theme.DarkCard
 import com.example.ui.theme.EmeraldDark
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.SoftIvoryMuted
@@ -92,7 +83,7 @@ fun HistoryScreen(viewModel: MainViewModel) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (isBn) "নিয়মিত দরুদ পড়ার মাধ্যমে আল্লাহর রহমত অর্জন করুন" else "Consistent recitation brings immense blessings",
+                    text = if (isBn) "দরুদ ও তাসবীহ পাঠের আলাদা ও সামগ্রিক বিবরণ" else "Detailed record of Durood and Tasbih recitations",
                     style = MaterialTheme.typography.bodyMedium.copy(color = subColor),
                     textAlign = TextAlign.Center
                 )
@@ -108,16 +99,16 @@ fun HistoryScreen(viewModel: MainViewModel) {
                 ) {
                     StatCard(
                         title = if (isBn) "আজকের মোট" else "Today's Total",
-                        value = "${statistics.todayTotal}",
-                        subtitle = if (isBn) "বার" else "times",
+                        value = "${statistics.todayTotal + statistics.todayTasbihTotal}",
+                        subtitle = if (isBn) "দরুদ: ${statistics.todayTotal} • তাসবীহ: ${statistics.todayTasbihTotal}" else "Durood: ${statistics.todayTotal} • Tasbih: ${statistics.todayTasbihTotal}",
                         modifier = Modifier.weight(1f),
                         isDark = isDark,
                         icon = "📿"
                     )
                     StatCard(
                         title = if (isBn) "এই সপ্তাহে" else "Weekly Total",
-                        value = "${statistics.weeklyTotal}",
-                        subtitle = if (isBn) "শেষ ৭ দিন" else "last 7 days",
+                        value = "${statistics.weeklyTotal + statistics.weeklyTasbihTotal}",
+                        subtitle = if (isBn) "দরুদ: ${statistics.weeklyTotal} • তাসবীহ: ${statistics.weeklyTasbihTotal}" else "Durood: ${statistics.weeklyTotal} • Tasbih: ${statistics.weeklyTasbihTotal}",
                         modifier = Modifier.weight(1f),
                         isDark = isDark,
                         icon = "📅"
@@ -130,8 +121,8 @@ fun HistoryScreen(viewModel: MainViewModel) {
                 ) {
                     StatCard(
                         title = if (isBn) "এই মাসে" else "Monthly Total",
-                        value = "${statistics.monthlyTotal}",
-                        subtitle = if (isBn) "চলতি মাস" else "this month",
+                        value = "${statistics.monthlyTotal + statistics.monthlyTasbihTotal}",
+                        subtitle = if (isBn) "দরুদ: ${statistics.monthlyTotal} • তাসবীহ: ${statistics.monthlyTasbihTotal}" else "Durood: ${statistics.monthlyTotal} • Tasbih: ${statistics.monthlyTasbihTotal}",
                         modifier = Modifier.weight(1f),
                         isDark = isDark,
                         icon = "🌙"
@@ -161,14 +152,14 @@ fun HistoryScreen(viewModel: MainViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (isBn) "সাপ্তাহিক চিত্র" else "Weekly Overview",
+                            text = if (isBn) "সাপ্তাহিক চিত্র (দরুদ ও তাসবীহ)" else "Weekly Overview",
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = titleColor
                             )
                         )
                         Text(
-                            text = if (isBn) "মোট: ${statistics.weeklyTotal}" else "Total: ${statistics.weeklyTotal}",
+                            text = if (isBn) "মোট: ${statistics.weeklyTotal + statistics.weeklyTasbihTotal}" else "Total: ${statistics.weeklyTotal + statistics.weeklyTasbihTotal}",
                             style = MaterialTheme.typography.labelMedium.copy(
                                 color = AntiqueGold,
                                 fontWeight = FontWeight.SemiBold
@@ -200,7 +191,8 @@ fun HistoryScreen(viewModel: MainViewModel) {
         }
 
         // If empty
-        if (allRecords.isEmpty() || (allRecords.size == 1 && allRecords.first().count == 0)) {
+        val validRecords = allRecords.filter { (it.count + it.tasbihCount) > 0 }
+        if (validRecords.isEmpty()) {
             item {
                 GlassCard(
                     modifier = Modifier
@@ -225,7 +217,7 @@ fun HistoryScreen(viewModel: MainViewModel) {
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (isBn) "হোম অথবা তাসবীহ পেজে গিয়ে দরুদ পাঠ গণনা শুরু করুন।" else "Go to Home or Counter to begin reciting Darood.",
+                            text = if (isBn) "হোম অথবা তাসবীহ পেজে গিয়ে দরুদ ও জিকির পাঠ শুরু করুন।" else "Go to Home or Tasbih to begin reciting.",
                             style = MaterialTheme.typography.bodySmall.copy(color = subColor),
                             textAlign = TextAlign.Center
                         )
@@ -233,7 +225,7 @@ fun HistoryScreen(viewModel: MainViewModel) {
                 }
             }
         } else {
-            items(allRecords.filter { it.count > 0 }) { record ->
+            items(validRecords) { record ->
                 GlassCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -284,7 +276,7 @@ fun HistoryScreen(viewModel: MainViewModel) {
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = if (isBn) "লক্ষ্য: ${record.target} বার" else "Target: ${record.target}",
+                                    text = if (isBn) "দরুদ লক্ষ্য: ${record.target}" else "Durood Target: ${record.target}",
                                     style = MaterialTheme.typography.bodySmall.copy(color = subColor)
                                 )
                             }
@@ -292,23 +284,54 @@ fun HistoryScreen(viewModel: MainViewModel) {
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "${record.count} বার",
-                                style = MaterialTheme.typography.titleMedium.copy(
+                                text = if (isBn) "দরুদ: ${record.count} বার" else "Durood: ${record.count}",
+                                style = MaterialTheme.typography.titleSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = if (record.completedGoal) AntiqueGold else titleColor
                                 )
                             )
-                            if (record.completedGoal) {
+                            if (record.tasbihCount > 0) {
                                 Text(
-                                    text = if (isBn) "লক্ষ্য পূরণ ✓" else "Target Met ✓",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        color = Color(0xFF2E7D32),
+                                    text = if (isBn) "তাসবীহ: ${record.tasbihCount} বার" else "Tasbih: ${record.tasbihCount}",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        color = AntiqueGold,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                 )
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // Developer Details Footer
+        item {
+            Spacer(modifier = Modifier.height(10.dp))
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDark) Color(0xFF122C20) else Color(0xFFEDE6D8),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Code,
+                        contentDescription = "Developer",
+                        tint = AntiqueGold,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isBn) "ডেভেলপার: TBT BOYz" else "Developer: TBT BOYz",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDark) SoftIvoryText else TextPrimaryDark
+                        )
+                    )
                 }
             }
         }
@@ -356,8 +379,9 @@ private fun StatCard(
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 11.sp,
-                    color = if (isDark) SoftIvoryMuted.copy(alpha = 0.8f) else TextSecondaryDark.copy(alpha = 0.8f)
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    color = if (isDark) SoftIvoryMuted.copy(alpha = 0.85f) else TextSecondaryDark.copy(alpha = 0.85f)
                 )
             )
         }
@@ -370,7 +394,7 @@ private fun WeeklyMinimalChart(
     isDark: Boolean,
     isBn: Boolean
 ) {
-    val maxCount = (data.maxOfOrNull { it.count } ?: 500).coerceAtLeast(100)
+    val maxCount = (data.maxOfOrNull { it.count + it.tasbihCount } ?: 500).coerceAtLeast(100)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -381,13 +405,14 @@ private fun WeeklyMinimalChart(
             verticalAlignment = Alignment.Bottom
         ) {
             data.forEach { bar ->
-                val barFraction = (bar.count.toFloat() / maxCount).coerceIn(0.04f, 1f)
+                val totalDay = bar.count + bar.tasbihCount
+                val barFraction = (totalDay.toFloat() / maxCount).coerceIn(0.04f, 1f)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = if (bar.count > 0) "${bar.count}" else "-",
+                        text = if (totalDay > 0) "$totalDay" else "-",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 10.sp,
                             fontWeight = if (bar.isToday) FontWeight.Bold else FontWeight.Normal,
@@ -404,7 +429,7 @@ private fun WeeklyMinimalChart(
                             .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                             .background(
                                 if (bar.isToday) AntiqueGold
-                                else if (bar.count > 0) (if (isDark) Color(0xFF205E46) else EmeraldPrimary)
+                                else if (totalDay > 0) (if (isDark) Color(0xFF205E46) else EmeraldPrimary)
                                 else if (isDark) Color(0xFF133627) else Color(0xFFE4DDCE)
                             )
                     )

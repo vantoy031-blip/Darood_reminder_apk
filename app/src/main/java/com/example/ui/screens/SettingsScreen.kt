@@ -444,7 +444,7 @@ fun SettingsScreen(
             text = {
                 Column {
                     Text(
-                        text = "একটু থামুন, দরুদ পড়ুন ﷺ\n\nঅ্যাপ সংস্করণ: ১.০.০ (1.0.0)\n\nএই অ্যাপটি মুসলিমদের দৈনন্দিন জীবনে প্রিয় নবী মুহাম্মদ ﷺ-এর ওপর দরুদ পাঠের আমলকে সহজ, নিয়মিত ও শান্তিপূর্ণ করার উদ্দেশ্যে তৈরি করা হয়েছে।\n\nরেফারেন্স: সহিহ মুসলিম: ৩৮৪, সুনান তিরমিজি: ৪৮৪, সুনান আন-নাসায়ী: ১২৯৭।",
+                        text = "একটু থামুন, দরুদ পড়ুন ﷺ\n\nডেভেলপার: TBT BOYz (Developed by TBT BOYz)\n\nঅ্যাপ সংস্করণ: ১.০.০ (1.0.0)\n\nএই অ্যাপটি মুসলিমদের দৈনন্দিন জীবনে প্রিয় নবী মুহাম্মদ ﷺ-এর ওপর দরুদ ও জিকির পাঠের আমলকে সহজ, নিয়মিত ও শান্তিপূর্ণ করার উদ্দেশ্যে তৈরি করা হয়েছে।\n\nরেফারেন্স: সহিহ মুসলিম: ৩৮৪, সুনান তিরমিজি: ৪৮৪, সুনান আন-নাসায়ী: ১২৯৭।",
                         style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp)
                     )
                 }
@@ -1071,7 +1071,108 @@ fun SettingsScreen(
             }
         }
 
-        // Section 6: About & Privacy
+        // Section 6: Background Process & Reliability
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = if (isBn) "ব্যাকগ্রাউন্ড প্রসেস ও ব্যাটারি অপ্টিমাইজেশন" else "Background Process & Battery",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = titleColor
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (isBn) {
+                            "মোবাইল সময় অনুযায়ী ব্যাকগ্রাউন্ডে নির্দিষ্ট সময়ে কোনো রিমাইন্ডার যাতে মিস না হয়, সেজন্য ফোনের ব্যাটারি অপ্টিমাইজেশন থেকে Darood অ্যাপকে অব্যাহতি দিন।"
+                        } else {
+                            "To ensure background reminders arrive reliably on time according to device clock without being killed by OS battery savers, allow unrestricted background running."
+                        },
+                        style = MaterialTheme.typography.bodySmall.copy(color = subColor, lineHeight = 18.sp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:" + context.packageName)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                try {
+                                    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {
+                                    Toast.makeText(context, if (isBn) "ডিভাইস সেটিংসে ব্যাটারি সেভার চেক করুন" else "Check battery settings", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = if (isBn) "ব্যাকগ্রাউন্ড প্রসেস নিশ্চিত করুন (Battery Saver Exemption)" else "Ensure Unrestricted Background Running",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 7: Developer Attribution (TBT BOYz)
+        item {
+            GlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                highlightGold = true
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = if (isBn) "অ্যাপ ডেভেলপার" else "App Developer",
+                            style = MaterialTheme.typography.labelMedium.copy(color = subColor)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "TBT BOYz",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = AntiqueGold
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (isBn) "উম্মাহর খেদমতে নিবেদিত" else "Dedicated to serving the Ummah",
+                            style = MaterialTheme.typography.bodySmall.copy(color = subColor, fontSize = 11.sp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AntiqueGold.copy(alpha = 0.2f))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "TBT BOYz",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = AntiqueGold
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 8: About & Privacy
         item {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(18.dp)) {
@@ -1095,7 +1196,7 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (isBn) "সংস্করণ: ১.০.০ • ১০০% অফলাইন ও ব্যক্তিগত" else "Version 1.0.0 • 100% Offline & Private",
+                        text = if (isBn) "সংস্করণ: ১.০.০ • ডেভেলপার: TBT BOYz • ১০০% অফলাইন" else "Version 1.0.0 • Developer: TBT BOYz • 100% Offline",
                         style = MaterialTheme.typography.bodySmall.copy(
                             color = subColor,
                             fontSize = 11.sp

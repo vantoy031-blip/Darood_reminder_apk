@@ -95,6 +95,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun incrementTasbih(dhikrId: String, delta: Int = 1) {
+        viewModelScope.launch {
+            repository.incrementTasbih(dhikrId, delta, defaultTarget = preferences.value.dailyTarget)
+            triggerHapticFeedback()
+        }
+    }
+
+    fun undoTasbih(dhikrId: String) {
+        viewModelScope.launch {
+            repository.undoTasbih(dhikrId)
+            triggerHapticFeedback()
+        }
+    }
+
+    fun resetTasbihSession() {
+        viewModelScope.launch {
+            repository.resetTasbihSession()
+            triggerHapticFeedback()
+        }
+    }
+
+    fun setSelectedDhikr(dhikrId: String) {
+        viewModelScope.launch {
+            repository.setSelectedDhikr(dhikrId)
+        }
+    }
+
     fun updateTarget(newTarget: Int) {
         prefManager.updateDailyTarget(newTarget)
         viewModelScope.launch {
