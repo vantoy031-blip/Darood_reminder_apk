@@ -154,13 +154,13 @@ jobs:
           TITLE="Debug APK Build #${{ github.run_number }}"
 
           NOTES="### Darood - Debug APK Build
-- Automatically generated debug APK built by GitHub Actions.
-- GitHub Actions Run Number: #${{ github.run_number }}
-- GitHub Actions Run Attempt: #${{ github.run_attempt }}
-- Source Commit SHA: ${{ github.sha }}
-- Intended for testing purposes.
-- Not a Play Store production release.
-- Signed only with a temporary debug keystore."
+          - Automatically generated debug APK built by GitHub Actions.
+          - GitHub Actions Run Number: #${{ github.run_number }}
+          - GitHub Actions Run Attempt: #${{ github.run_attempt }}
+          - Source Commit SHA: ${{ github.sha }}
+          - Intended for testing purposes.
+          - Not a Play Store production release.
+          - Signed only with a temporary debug keystore."
 
           echo "Creating GitHub Release with tag: $TAG"
           gh release create "$TAG" "$ASSET_PATH" \
@@ -190,7 +190,7 @@ jobs:
             echo "**Latest Direct Download Link:**" >> "$GITHUB_STEP_SUMMARY"
             echo "[$DIRECT_URL]($DIRECT_URL)" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "*(Backup Actions artifact `app-debug-apk` is also preserved)*" >> "$GITHUB_STEP_SUMMARY"
+            echo "*(Backup Actions artifact \`app-debug-apk\` is also preserved)*" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "WARNING: GitHub Release creation did not succeed or was skipped."
             if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
